@@ -18,10 +18,13 @@ test('設定とプライバシーのルートへ移動できる', async ({ page 
   await page.goto('/')
   await page.getByRole('link', { name: '設定を開く' }).click()
   await expect(page.getByRole('heading', { name: '設定・データ管理' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'ブラウザの保存領域' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'ZIPを書き出す' })).toBeVisible()
 
   await page.getByRole('link', { name: 'データ保存とプライバシーについて' }).click()
   await expect(page).toHaveURL(/\/privacy$/)
   await expect(page.getByRole('heading', { name: 'データ保存・プライバシー' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '端末内だけに保存' })).toBeVisible()
 })
 
 test('PC幅ではサイドナビゲーションを表示する', async ({ page }) => {
@@ -52,4 +55,21 @@ test('OSのダークモード設定を反映する', async ({ page }) => {
 
   expect(darkBackground).not.toBe(lightBackground)
   expect(darkText).not.toBe(lightText)
+})
+
+test('バックアップを書き出して復元前プレビューを確認できる', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: '保存する' }).click()
+  await expect(page.getByText('保存しました。')).toBeVisible()
+  await page.getByRole('link', { name: '設定を開く' }).click()
+  const downloadPromise = page.waitForEvent('download')
+  await page.getByRole('button', { name: 'ZIPを書き出す' }).click()
+  const download = await downloadPromise
+  expect(download.suggestedFilename()).toMatch(/^UCHealthLog-backup-\d{4}-\d{2}-\d{2}\.zip$/)
+  const path = await download.path()
+  expect(path).not.toBeNull()
+  await page.getByLabel('ZIPを選択').setInputFiles(path!)
+  await expect(page.getByRole('heading', { name: '復元内容の確認' })).toBeVisible()
+  await expect(page.getByText('同じ日付の既存記録: 1件')).toBeVisible()
+  await expect(page.getByRole('radio', { name: '既存データを保持（推奨）' })).toBeChecked()
 })

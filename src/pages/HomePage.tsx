@@ -14,6 +14,7 @@ import {
   type MealPhotoType,
 } from '../domain/types'
 import { formatJapaneseDate, toDateKey } from '../utils/date'
+import { isQuotaExceededError, STORAGE_SHORTAGE_MESSAGE } from '../services/storageService'
 
 interface HomePageProps {
   repository?: RecordRepository
@@ -99,8 +100,8 @@ export function HomePage({
       setExistingPhotos(photos)
       setPhotoDrafts({})
       setMessage('保存しました。')
-    } catch {
-      setError('保存できませんでした。入力内容を確認して、もう一度お試しください。')
+    } catch (caught) {
+      setError(isQuotaExceededError(caught) ? STORAGE_SHORTAGE_MESSAGE : '保存できませんでした。入力内容を確認して、もう一度お試しください。')
     } finally {
       setSaving(false)
     }

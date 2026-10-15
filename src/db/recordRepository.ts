@@ -17,6 +17,13 @@ export interface SaveRecordOptions {
   photos?: readonly MealPhotoDraft[]
 }
 
+export type ImportMode = 'keep' | 'overwrite'
+
+export interface ImportResult {
+  importedRecords: number
+  skippedRecords: number
+}
+
 function createId(): string {
   return crypto.randomUUID()
 }
@@ -57,6 +64,47 @@ export class RecordRepository {
         MEAL_PHOTO_TYPES.indexOf(left.type) -
         MEAL_PHOTO_TYPES.indexOf(right.type),
     )
+  }
+
+  async listAllPhotos(): Promise<MealPhotoRow[]> {
+    const photos = await this.database.mealPhotos.toArray()
+    photos.forEach(validateMealPhotoRow)
+    return photos
+  }
+
+  async importRows(
+    records: readonly HealthRecordRow[],
+    photos: readonly MealPhotoRow[],
+    mode: ImportMode,
+  ): Promise<ImportResult> {
+    records.forEach(validateHealthRecordRow)
+    photos.forEach(validateMealPhotoRow)
+    let importedRecords = 0
+    let skippedRecords = 0
+
+    await this.database.transaction('rw', this.database.healthRecords, this.database.mealPhotos, async () => {
+      for (const record of records) {
+        const existing = await this.database.healthRecords.where('dateKey').equals(record.dateKey).first()
+        if (existing && mode === 'keep') {
+          skippedRecords += 1
+          continue
+        }
+        if (existing) {
+          await this.database.mealPhotos.where('recordId').equals(existing.id).delete()
+          await this.database.healthRecords.delete(existing.id)
+        }
+        // 同じIDが別日で存在する場合も、上書き時は関連写真ごと置換する。
+        const sameId = await this.database.healthRecords.get(record.id)
+        if (sameId && mode === 'overwrite') {
+          await this.database.mealPhotos.where('recordId').equals(sameId.id).delete()
+          await this.database.healthRecords.delete(sameId.id)
+        }
+        await this.database.healthRecords.add(record)
+        await this.database.mealPhotos.bulkAdd(photos.filter((photo) => photo.recordId === record.id))
+        importedRecords += 1
+      }
+    })
+    return { importedRecords, skippedRecords }
   }
 
   async save(
