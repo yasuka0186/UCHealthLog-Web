@@ -1,25 +1,40 @@
 import { createBrowserRouter } from 'react-router'
 import { AppLayout } from '../components/layout/AppLayout'
-import { GraphPage } from '../pages/GraphPage'
-import { HistoryPage } from '../pages/HistoryPage'
-import { HomePage } from '../pages/HomePage'
-import { NotFoundPage } from '../pages/NotFoundPage'
-import { PrivacyPage } from '../pages/PrivacyPage'
-import { RecordDetailPage } from '../pages/RecordDetailPage'
-import { SettingsPage } from '../pages/SettingsPage'
 
 export const router = createBrowserRouter([
   {
     path: '/',
     element: <AppLayout />,
+    hydrateFallbackElement: <p className="p-6" role="status">読み込み中…</p>,
     children: [
-      { index: true, element: <HomePage /> },
-      { path: 'history', element: <HistoryPage /> },
-      { path: 'history/:id', element: <RecordDetailPage /> },
-      { path: 'graph', element: <GraphPage /> },
-      { path: 'settings', element: <SettingsPage /> },
-      { path: 'privacy', element: <PrivacyPage /> },
-      { path: '*', element: <NotFoundPage /> },
+      {
+        index: true,
+        lazy: async () => ({ Component: (await import('../pages/HomePage')).HomePage }),
+      },
+      {
+        path: 'history',
+        lazy: async () => ({ Component: (await import('../pages/HistoryPage')).HistoryPage }),
+      },
+      {
+        path: 'history/:id',
+        lazy: async () => ({ Component: (await import('../pages/RecordDetailPage')).RecordDetailPage }),
+      },
+      {
+        path: 'graph',
+        lazy: async () => ({ Component: (await import('../pages/GraphPage')).GraphPage }),
+      },
+      {
+        path: 'settings',
+        lazy: async () => ({ Component: (await import('../pages/SettingsPage')).SettingsPage }),
+      },
+      {
+        path: 'privacy',
+        lazy: async () => ({ Component: (await import('../pages/PrivacyPage')).PrivacyPage }),
+      },
+      {
+        path: '*',
+        lazy: async () => ({ Component: (await import('../pages/NotFoundPage')).NotFoundPage }),
+      },
     ],
   },
 ])
