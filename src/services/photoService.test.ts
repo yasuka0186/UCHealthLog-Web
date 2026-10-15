@@ -27,6 +27,27 @@ describe('photoService', () => {
     await expect(fileToMealPhotoDraft(new File(['svg'], 'x.svg', { type: 'image/svg+xml' }), 'lunch')).rejects.toThrow(PhotoSelectionError)
   })
 
+  it('createImageBitmapで読めない場合は画像要素へフォールバックする', async () => {
+    vi.spyOn(globalThis, 'createImageBitmap').mockRejectedValueOnce(new Error('unsupported'))
+    const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:fallback-photo')
+    const OriginalImage = globalThis.Image
+    class SyntheticImage {
+      naturalWidth = 800
+      naturalHeight = 600
+      onload: (() => void) | null = null
+      onerror: (() => void) | null = null
+      set src(_value: string) { queueMicrotask(() => this.onload?.()) }
+    }
+    Object.defineProperty(globalThis, 'Image', { configurable: true, value: SyntheticImage })
+    try {
+      await expect(fileToMealPhotoDraft(new File(['image'], 'meal.png', { type: 'image/png' }), 'dinner')).resolves.toMatchObject({ type: 'dinner', mimeType: 'image/jpeg' })
+      expect(revoke).toHaveBeenCalledWith('blob:fallback-photo')
+    } finally {
+      Object.defineProperty(globalThis, 'Image', { configurable: true, value: OriginalImage })
+    }
+  })
+
   it('Object URLの生成と破棄をサービス境界から呼び出す', () => {
     Object.defineProperty(URL, 'createObjectURL', {
       configurable: true,

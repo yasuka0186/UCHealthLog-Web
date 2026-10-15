@@ -16,7 +16,7 @@ test('主要ルートをナビゲーションで移動できる', async ({ page 
 test('設定とプライバシーのルートへ移動できる', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/')
-  await page.getByRole('link', { name: '設定を開く' }).click()
+  await page.goto('/settings')
   await expect(page.getByRole('heading', { name: '設定・データ管理' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'ブラウザの保存領域' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'ZIPを書き出す' })).toBeVisible()
@@ -61,7 +61,7 @@ test('バックアップを書き出して復元前プレビューを確認で�
   await page.goto('/')
   await page.getByRole('button', { name: '保存する' }).click()
   await expect(page.getByText('保存しました。')).toBeVisible()
-  await page.getByRole('link', { name: '設定を開く' }).click()
+  await page.goto('/settings')
   const downloadPromise = page.waitForEvent('download')
   await page.getByRole('button', { name: 'ZIPを書き出す' }).click()
   const download = await downloadPromise

@@ -1,19 +1,34 @@
 import Dexie, { type EntityTable } from 'dexie'
-import type { HealthRecordRow, MealPhotoRow } from '../domain/types'
-import { DATABASE_SCHEMA, DATABASE_VERSION } from './schema'
+import type { HealthRecordRow } from '../domain/types'
+import { DATABASE_SCHEMA, DATABASE_SCHEMA_V1, DATABASE_VERSION } from './schema'
+import type { LegacyMealPhotoStorageRow, MealPhotoStorageRow } from './types'
 
 export const DEFAULT_DATABASE_NAME = 'UCHealthLog'
 
 export class UCHealthLogDatabase extends Dexie {
   healthRecords!: EntityTable<HealthRecordRow, 'id'>
-  mealPhotos!: EntityTable<MealPhotoRow, 'id'>
+  mealPhotos!: EntityTable<MealPhotoStorageRow, 'id'>
 
   constructor(name = DEFAULT_DATABASE_NAME) {
     super(name)
 
-    // 将来はバージョンを昇順に追加し、Dexieのupgrade()で既存データを移行する。
-    // 現時点で実在するスキーマはバージョン1だけである。
-    this.version(DATABASE_VERSION).stores(DATABASE_SCHEMA)
+    this.version(1).stores(DATABASE_SCHEMA_V1)
+    this.version(DATABASE_VERSION).stores(DATABASE_SCHEMA).upgrade(async (transaction) => {
+      const table = transaction.table<LegacyMealPhotoStorageRow | MealPhotoStorageRow>('mealPhotos')
+      const photos = await table.toArray()
+      for (const photo of photos) {
+        if ('data' in photo) continue
+        const data = await Dexie.waitFor(photo.blob.arrayBuffer())
+        await table.put({
+          id: photo.id,
+          recordId: photo.recordId,
+          type: photo.type,
+          data,
+          mimeType: photo.mimeType,
+          createdAt: photo.createdAt,
+        })
+      }
+    })
   }
 }
 

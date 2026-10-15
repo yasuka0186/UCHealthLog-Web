@@ -12,6 +12,7 @@ import {
   validateMealPhotoRow,
 } from '../domain/recordValidation'
 import { db, type UCHealthLogDatabase } from './db'
+import type { MealPhotoStorageRow } from './types'
 
 export interface SaveRecordOptions {
   photos?: readonly MealPhotoDraft[]
@@ -30,6 +31,33 @@ function createId(): string {
 
 function nowIso(): string {
   return new Date().toISOString()
+}
+
+async function toStoragePhoto(
+  photo: MealPhotoDraft,
+  recordId: string,
+  id: string,
+  createdAt: string,
+): Promise<MealPhotoStorageRow> {
+  return {
+    id,
+    recordId,
+    type: photo.type,
+    data: await photo.blob.arrayBuffer(),
+    mimeType: photo.mimeType,
+    createdAt,
+  }
+}
+
+function fromStoragePhoto(photo: MealPhotoStorageRow): MealPhotoRow {
+  return {
+    id: photo.id,
+    recordId: photo.recordId,
+    type: photo.type,
+    blob: new Blob([photo.data], { type: photo.mimeType }),
+    mimeType: photo.mimeType,
+    createdAt: photo.createdAt,
+  }
 }
 
 export class RecordRepository {
@@ -54,10 +82,11 @@ export class RecordRepository {
   }
 
   async getPhotos(recordId: string): Promise<MealPhotoRow[]> {
-    const photos = await this.database.mealPhotos
+    const storedPhotos = await this.database.mealPhotos
       .where('recordId')
       .equals(recordId)
       .toArray()
+    const photos = storedPhotos.map(fromStoragePhoto)
     photos.forEach(validateMealPhotoRow)
     return photos.sort(
       (left, right) =>
@@ -67,7 +96,7 @@ export class RecordRepository {
   }
 
   async listAllPhotos(): Promise<MealPhotoRow[]> {
-    const photos = await this.database.mealPhotos.toArray()
+    const photos = (await this.database.mealPhotos.toArray()).map(fromStoragePhoto)
     photos.forEach(validateMealPhotoRow)
     return photos
   }
@@ -79,6 +108,7 @@ export class RecordRepository {
   ): Promise<ImportResult> {
     records.forEach(validateHealthRecordRow)
     photos.forEach(validateMealPhotoRow)
+    const storedPhotos = await Promise.all(photos.map((photo) => toStoragePhoto(photo, photo.recordId, photo.id, photo.createdAt)))
     let importedRecords = 0
     let skippedRecords = 0
 
@@ -100,7 +130,7 @@ export class RecordRepository {
           await this.database.healthRecords.delete(sameId.id)
         }
         await this.database.healthRecords.add(record)
-        await this.database.mealPhotos.bulkAdd(photos.filter((photo) => photo.recordId === record.id))
+        await this.database.mealPhotos.bulkAdd(storedPhotos.filter((photo) => photo.recordId === record.id))
         importedRecords += 1
       }
     })
@@ -114,6 +144,10 @@ export class RecordRepository {
     validateHealthRecordDraft(draft)
     const photos = options.photos ?? []
     for (const photo of photos) validateMealPhotoDraft(photo)
+    const preparedPhotos = await Promise.all(photos.map(async (photo) => ({
+      draft: photo,
+      data: await photo.blob.arrayBuffer(),
+    })))
 
     let savedRecord: HealthRecordRow | undefined
 
@@ -141,16 +175,17 @@ export class RecordRepository {
 
         await this.database.healthRecords.put(record)
 
-        for (const photo of photos) {
+        for (const prepared of preparedPhotos) {
+          const photo = prepared.draft
           const previous = await this.database.mealPhotos
             .where('[recordId+type]')
             .equals([record.id, photo.type])
             .first()
-          const row: MealPhotoRow = {
+          const row: MealPhotoStorageRow = {
             id: previous?.id ?? createId(),
             recordId: record.id,
             type: photo.type,
-            blob: photo.blob,
+            data: prepared.data,
             mimeType: photo.mimeType,
             createdAt: timestamp,
           }
