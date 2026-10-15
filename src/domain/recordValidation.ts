@@ -6,7 +6,9 @@ import {
   type BloodStatus,
   type ConditionStatus,
   type HealthRecordDraft,
+  type HealthRecordRow,
   type MealPhotoDraft,
+  type MealPhotoRow,
   type MealPhotoType,
   type MedicationStatus,
 } from './types'
@@ -97,6 +99,41 @@ export function validateMealPhotoDraft(
     issues.push('MIME typeは必須です。')
   }
 
+  if (issues.length > 0) throw new ValidationError(issues)
+}
+
+function isUuid(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+  )
+}
+
+function isIsoDateTime(value: unknown): value is string {
+  return typeof value === 'string' && !Number.isNaN(Date.parse(value))
+}
+
+export function validateHealthRecordRow(
+  value: unknown,
+): asserts value is HealthRecordRow {
+  validateHealthRecordDraft(value)
+  const row = value as unknown as Record<string, unknown>
+  const issues: string[] = []
+  if (!isUuid(row.id)) issues.push('記録IDが不正です。')
+  if (!isIsoDateTime(row.createdAt)) issues.push('作成日時が不正です。')
+  if (!isIsoDateTime(row.updatedAt)) issues.push('更新日時が不正です。')
+  if (issues.length > 0) throw new ValidationError(issues)
+}
+
+export function validateMealPhotoRow(
+  value: unknown,
+): asserts value is MealPhotoRow {
+  validateMealPhotoDraft(value)
+  const row = value as unknown as Record<string, unknown>
+  const issues: string[] = []
+  if (!isUuid(row.id)) issues.push('写真IDが不正です。')
+  if (!isUuid(row.recordId)) issues.push('写真の記録IDが不正です。')
+  if (!isIsoDateTime(row.createdAt)) issues.push('写真の作成日時が不正です。')
   if (issues.length > 0) throw new ValidationError(issues)
 }
 

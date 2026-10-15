@@ -11,8 +11,8 @@ export class UCHealthLogDatabase extends Dexie {
   constructor(name = DEFAULT_DATABASE_NAME) {
     super(name)
 
-    // Add future schema versions in ascending order and migrate existing rows
-    // with Dexie's upgrade() API. Version 1 is the only real schema today.
+    // 将来はバージョンを昇順に追加し、Dexieのupgrade()で既存データを移行する。
+    // 現時点で実在するスキーマはバージョン1だけである。
     this.version(DATABASE_VERSION).stores(DATABASE_SCHEMA)
   }
 }

@@ -7,7 +7,9 @@ import {
 } from '../domain/types'
 import {
   validateHealthRecordDraft,
+  validateHealthRecordRow,
   validateMealPhotoDraft,
+  validateMealPhotoRow,
 } from '../domain/recordValidation'
 import { db, type UCHealthLogDatabase } from './db'
 
@@ -27,15 +29,21 @@ export class RecordRepository {
   constructor(private readonly database: UCHealthLogDatabase = db) {}
 
   async getByDateKey(dateKey: string): Promise<HealthRecordRow | undefined> {
-    return this.database.healthRecords.where('dateKey').equals(dateKey).first()
+    const record = await this.database.healthRecords.where('dateKey').equals(dateKey).first()
+    if (record) validateHealthRecordRow(record)
+    return record
   }
 
   async getById(id: string): Promise<HealthRecordRow | undefined> {
-    return this.database.healthRecords.get(id)
+    const record = await this.database.healthRecords.get(id)
+    if (record) validateHealthRecordRow(record)
+    return record
   }
 
   async listAll(): Promise<HealthRecordRow[]> {
-    return this.database.healthRecords.orderBy('dateKey').reverse().toArray()
+    const records = await this.database.healthRecords.orderBy('dateKey').reverse().toArray()
+    records.forEach(validateHealthRecordRow)
+    return records
   }
 
   async getPhotos(recordId: string): Promise<MealPhotoRow[]> {
@@ -43,6 +51,7 @@ export class RecordRepository {
       .where('recordId')
       .equals(recordId)
       .toArray()
+    photos.forEach(validateMealPhotoRow)
     return photos.sort(
       (left, right) =>
         MEAL_PHOTO_TYPES.indexOf(left.type) -
