@@ -170,7 +170,7 @@ Web版v1は、iOS版MVP ver.1.04の以下を再現する。
 - 選択した新規画像は保存前なら解除できる。
 - 同じ日・同じ食事区分に既存写真がある状態で新しい写真を選び保存した場合、既存を置換する。
 - 表示順は必ず「朝 → 昼 → 晩 → 間食」。
-- Web版では保存前に画像を縮小・圧縮し、IndexedDBのBlobとして保存する。
+- Web版では保存前に画像を縮小・圧縮する。画面・バックアップ境界ではBlobとして扱い、IndexedDB内部ではSafari/WebKitのBlob保存互換性を考慮してArrayBufferとして保存する。
 - 推奨初期値: 長辺最大1600px程度、JPEG/WebP品質0.8前後。定数化し、変更しやすくする。
 - MIME typeが画像でないファイルは拒否する。
 - 読み込み・圧縮・保存失敗時はユーザーへエラーを表示する。
@@ -260,16 +260,18 @@ interface HealthRecordRow {
 ```ts
 type MealPhotoType = 'breakfast' | 'lunch' | 'dinner' | 'snack'
 
-interface MealPhotoRow {
+interface MealPhotoStorageRow {
   id: string
   recordId: string
   type: MealPhotoType
-  blob: Blob
+  data: ArrayBuffer
   mimeType: string
   createdAt: string
 }
 ```
 
+- UI、画像圧縮、バックアップでは写真を `Blob` として扱い、repository層で `Blob` と `ArrayBuffer` を相互変換する。
+- DB version 1の `blob: Blob` 行は、DB version 2 migrationで `data: ArrayBuffer` へ変換し、既存写真を維持する。
 - `recordId` をindex化する。
 - `recordId + type` の重複を防ぎ、1記録・1食事区分につき1枚とする。
 - 記録削除時に関連写真を同じtransactionで削除する。

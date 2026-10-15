@@ -99,6 +99,7 @@ describe('HomePage', () => {
 
     const second = new File(['second'], 'second.png', { type: 'image/png' })
     fireEvent.change(screen.getByLabelText('朝の写真を選択'), { target: { files: [second] } })
+    await screen.findByText('写真を変更')
     fireEvent.click(screen.getByRole('button', { name: '保存する' }))
     await screen.findByText('保存しました。')
     const saved = await repository.getByDateKey('2026-08-07')
@@ -107,6 +108,7 @@ describe('HomePage', () => {
 
     const replacement = new File(['replacement'], 'replacement.png', { type: 'image/png' })
     fireEvent.change(screen.getByLabelText('朝の写真を選択'), { target: { files: [replacement] } })
+    await screen.findByText('写真を変更')
     fireEvent.click(screen.getByRole('button', { name: '保存する' }))
     await waitFor(async () => expect(await repository.getPhotos(saved!.id)).toHaveLength(1))
   })
@@ -116,6 +118,17 @@ describe('HomePage', () => {
     await screen.findByText('2026年8月7日（金）')
     const textFile = new File(['memo'], 'memo.txt', { type: 'text/plain' })
     fireEvent.change(screen.getByLabelText('朝の写真を選択'), { target: { files: [textFile] } })
-    expect(await screen.findByRole('alert')).toHaveTextContent('画像ファイルを選択してください。')
+    expect(await screen.findByRole('alert')).toHaveTextContent('JPEG、PNG、WebP形式の画像を選択してください。')
+  })
+
+  it('容量超過時にセンシティブ情報を含まない対処案を表示する', async () => {
+    vi.spyOn(repository, 'save').mockRejectedValueOnce(new DOMException('synthetic full', 'QuotaExceededError'))
+    render(<HomePage getToday={() => new Date(2026, 7, 7, 12)} repository={repository} />)
+    await screen.findByText('2026年8月7日（金）')
+    fireEvent.click(screen.getByRole('button', { name: '保存する' }))
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('ブラウザの保存容量が不足しています。')
+    expect(alert).toHaveTextContent('バックアップ後に再試行')
+    expect(alert).not.toHaveTextContent('synthetic full')
   })
 })

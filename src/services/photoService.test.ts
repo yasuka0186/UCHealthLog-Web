@@ -1,24 +1,51 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   createPhotoObjectUrl,
+  calculatePhotoSize,
   fileToMealPhotoDraft,
   PhotoSelectionError,
   revokePhotoObjectUrl,
 } from './photoService'
 
 describe('photoService', () => {
-  it('画像ファイルを食事写真draftへ変換する', () => {
+  it('画像ファイルをJPEGへ圧縮して食事写真draftへ変換する', async () => {
     const file = new File(['image'], 'meal.png', { type: 'image/png' })
-    expect(fileToMealPhotoDraft(file, 'lunch')).toEqual({
-      type: 'lunch',
-      blob: file,
-      mimeType: 'image/png',
-    })
+    const result = await fileToMealPhotoDraft(file, 'lunch')
+    expect(result.type).toBe('lunch')
+    expect(result.mimeType).toBe('image/jpeg')
+    expect(result.blob.type).toBe('image/jpeg')
   })
 
-  it('画像以外のファイルを拒否する', () => {
+  it('長辺を1600px以下にし、小さい画像は拡大しない', () => {
+    expect(calculatePhotoSize(3200, 2400)).toEqual({ width: 1600, height: 1200 })
+    expect(calculatePhotoSize(800, 600)).toEqual({ width: 800, height: 600 })
+  })
+
+  it('非対応形式とSVGを拒否する', async () => {
     const file = new File(['text'], 'memo.txt', { type: 'text/plain' })
-    expect(() => fileToMealPhotoDraft(file, 'lunch')).toThrow(PhotoSelectionError)
+    await expect(fileToMealPhotoDraft(file, 'lunch')).rejects.toThrow(PhotoSelectionError)
+    await expect(fileToMealPhotoDraft(new File(['svg'], 'x.svg', { type: 'image/svg+xml' }), 'lunch')).rejects.toThrow(PhotoSelectionError)
+  })
+
+  it('createImageBitmapで読めない場合は画像要素へフォールバックする', async () => {
+    vi.spyOn(globalThis, 'createImageBitmap').mockRejectedValueOnce(new Error('unsupported'))
+    const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:fallback-photo')
+    const OriginalImage = globalThis.Image
+    class SyntheticImage {
+      naturalWidth = 800
+      naturalHeight = 600
+      onload: (() => void) | null = null
+      onerror: (() => void) | null = null
+      set src(_value: string) { queueMicrotask(() => this.onload?.()) }
+    }
+    Object.defineProperty(globalThis, 'Image', { configurable: true, value: SyntheticImage })
+    try {
+      await expect(fileToMealPhotoDraft(new File(['image'], 'meal.png', { type: 'image/png' }), 'dinner')).resolves.toMatchObject({ type: 'dinner', mimeType: 'image/jpeg' })
+      expect(revoke).toHaveBeenCalledWith('blob:fallback-photo')
+    } finally {
+      Object.defineProperty(globalThis, 'Image', { configurable: true, value: OriginalImage })
+    }
   })
 
   it('Object URLの生成と破棄をサービス境界から呼び出す', () => {

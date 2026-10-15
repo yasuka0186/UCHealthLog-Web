@@ -1,9 +1,11 @@
 // @vitest-environment node
 
+import Dexie from 'dexie'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { HealthRecordDraft, MealPhotoDraft } from '../domain/types'
 import { UCHealthLogDatabase } from './db'
 import { RecordRepository } from './recordRepository'
+import { DATABASE_SCHEMA_V1 } from './schema'
 
 const draft: HealthRecordDraft = {
   dateKey: '2026-08-07',
@@ -97,6 +99,9 @@ describe('RecordRepository', () => {
     expect(after.filter(({ type }) => type === 'breakfast')).toHaveLength(1)
     expect(after.find(({ type }) => type === 'breakfast')?.id).toBe(before[0]?.id)
     expect(after[0]?.blob.size).toBe(new Blob(['after']).size)
+    const stored = await database.mealPhotos.get(after[0]!.id)
+    expect(stored?.data).toBeInstanceOf(ArrayBuffer)
+    expect(stored).not.toHaveProperty('blob')
   })
 
   it('DBの複合unique制約でも写真の重複を拒否する', async () => {
@@ -106,8 +111,12 @@ describe('RecordRepository', () => {
 
     await expect(
       database.mealPhotos.add({
-        ...existing!,
         id: crypto.randomUUID(),
+        recordId: existing!.recordId,
+        type: existing!.type,
+        data: await existing!.blob.arrayBuffer(),
+        mimeType: existing!.mimeType,
+        createdAt: existing!.createdAt,
       }),
     ).rejects.toMatchObject({ name: 'ConstraintError' })
   })
@@ -172,5 +181,26 @@ describe('RecordRepository', () => {
 
     await expect(repository.getById(saved.id)).resolves.toEqual(saved)
     await expect(repository.getPhotos(saved.id)).resolves.toHaveLength(1)
+  })
+
+  it('DB version 1のBlob写真をversion 2でArrayBufferへ移行する', async () => {
+    database.close()
+    await database.delete()
+    const recordId = crypto.randomUUID()
+    const photoId = crypto.randomUUID()
+    const legacy = new Dexie(databaseName)
+    legacy.version(1).stores(DATABASE_SCHEMA_V1)
+    await legacy.table('healthRecords').add({ ...draft, id: recordId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() })
+    await legacy.table('mealPhotos').add({ id: photoId, recordId, type: 'breakfast', blob: new Blob(['legacy-photo'], { type: 'image/jpeg' }), mimeType: 'image/jpeg', createdAt: new Date().toISOString() })
+    legacy.close()
+
+    database = new UCHealthLogDatabase(databaseName)
+    repository = new RecordRepository(database)
+    const photos = await repository.getPhotos(recordId)
+    expect(photos).toHaveLength(1)
+    expect(await photos[0]!.blob.text()).toBe('legacy-photo')
+    const migrated = await database.mealPhotos.get(photoId)
+    expect(migrated?.data).toBeInstanceOf(ArrayBuffer)
+    expect(migrated).not.toHaveProperty('blob')
   })
 })
