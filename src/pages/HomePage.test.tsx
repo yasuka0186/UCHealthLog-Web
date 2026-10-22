@@ -35,6 +35,10 @@ describe('HomePage', () => {
     expect(screen.getByText('0回')).toBeInTheDocument()
     expect(screen.getByLabelText('自由メモ')).toHaveValue('')
     expect(screen.getByRole('button', { name: 'トイレ回数を1回減らす' })).toBeDisabled()
+    for (const label of ['体調', '腹痛レベル', '血便', '服薬チェック']) {
+      expect(screen.getByRole('group', { name: label })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: label })).toBeInTheDocument()
+    }
   })
 
   it('月移動・日付選択・体調マーカー表示と保存済み記録の読込ができる', async () => {

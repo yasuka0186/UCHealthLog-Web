@@ -37,8 +37,9 @@ function ChoiceGroup<T extends string>({
 }: ChoiceGroupProps<T>) {
   return (
     <fieldset className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-      <legend className="px-1 font-semibold">{label}</legend>
-      <div className="mt-2 grid grid-cols-3 gap-2">
+      <legend className="sr-only">{label}</legend>
+      <h2 className="font-semibold">{label}</h2>
+      <div className="mt-3 grid grid-cols-3 gap-2">
         {options.map((option) => (
           <label
             className={`flex min-h-11 cursor-pointer items-center justify-center rounded-xl border px-2 text-center text-sm font-medium transition-colors focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-blue-600 ${
@@ -79,8 +80,9 @@ export function RecordFields({ draft, disabled = false, onChange }: RecordFields
       />
 
       <fieldset className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <legend className="px-1 font-semibold">腹痛レベル</legend>
-        <div className="mt-2 grid grid-cols-6 gap-2">
+        <legend className="sr-only">腹痛レベル</legend>
+        <h2 className="font-semibold">腹痛レベル</h2>
+        <div className="mt-3 grid grid-cols-6 gap-2">
           {[0, 1, 2, 3, 4, 5].map((level) => (
             <label
               className={`grid min-h-11 cursor-pointer place-items-center rounded-full font-semibold focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-blue-600 ${
